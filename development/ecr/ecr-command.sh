@@ -67,6 +67,25 @@ function login_ecr_public {
     fi
 }
 
+function login_ecr_private {
+    local -r registry="${1?First argument is registry, for example 123456789012.dkr.ecr.us-east-1.amazonaws.com}"
+    local -r registry_id="${registry%%.*}"
+    local -r region="$(echo "${registry}" | cut -d. -f4)"
+    TOKEN=$(aws ecr get-authorization-token \
+        --region "${region}" \
+        --registry-ids "${registry_id}" \
+        --output=text \
+        --query 'authorizationData[0].authorizationToken')
+    local -r docker_config="${DOCKER_CONFIG:-${HOME}/.docker}"
+    mkdir -p "${docker_config}"
+    if [ ! -f "${docker_config}/config.json" ]; then
+        echo '{}' > "${docker_config}/config.json"
+    fi
+    jq --arg REGISTRY "${registry}" --arg TOKEN "${TOKEN}" '.auths[$REGISTRY].auth = $TOKEN' \
+        "${docker_config}/config.json" > "${docker_config}/config.json.new"
+    cp "${docker_config}/config.json.new" "${docker_config}/config.json"
+}
+
 function create_private_repository {
     local -r repository_name="${1?First argument is repository name}"
     aws ecr describe-repositories \
@@ -203,6 +222,9 @@ login-ecr-public)
   export AWS_DEFAULT_REGION=us-east-1
   export AWS_REGION=us-east-1
   login_ecr_public
+  ;;
+login-ecr-private)
+  login_ecr_private ${1}
   ;;
 create-public-repository)
   export AWS_DEFAULT_REGION=us-east-1

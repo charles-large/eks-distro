@@ -55,4 +55,15 @@ cp -r /$HOME/.docker ${BASE_DIRECTORY}
 export DOCKER_CONFIG=${BASE_DIRECTORY}/.docker
 ${BASE_DIRECTORY}/development/ecr/ecr-command.sh install-ecr-public
 ${BASE_DIRECTORY}/development/ecr/ecr-command.sh login-ecr-public
-make release ${*}
+make release ${*} || exit 1
+
+if [ -n "${PRIVATE_IMAGE_REPO:-}" ]; then
+    if ! ${BASE_DIRECTORY}/development/ecr/ecr-command.sh login-ecr-private ${PRIVATE_IMAGE_REPO} ||
+       ! ${BASE_DIRECTORY}/release/push_private_images.sh \
+            kubernetes-${RELEASE_BRANCH}/kubernetes-${RELEASE_BRANCH}-eks-${RELEASE}.yaml \
+            ${IMAGE_REPO} \
+            ${PRIVATE_IMAGE_REPO}; then
+        echo "The public release completed. Only the copy to ${PRIVATE_IMAGE_REPO} failed."
+        exit 1
+    fi
+fi
